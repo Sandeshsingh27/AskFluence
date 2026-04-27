@@ -1,8 +1,19 @@
+import asyncio
+import logging
+import random
 from typing import List
 
-from openai import AsyncOpenAI
+from openai import APIError, AsyncOpenAI, RateLimitError
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+# GitHub Models has tight per-minute and per-day rate limits.
+# Keep batches small and pace requests; back off aggressively on 429.
+_BATCH_SIZE = 16
+_INTER_BATCH_DELAY_SEC = 1.0
+_MAX_RETRIES = 6
 
 
 def _client() -> AsyncOpenAI:
@@ -10,7 +21,52 @@ def _client() -> AsyncOpenAI:
     return AsyncOpenAI(
         base_url=settings.github_models_base_url,
         api_key=settings.github_token,
+        timeout=60.0,
     )
+
+
+def _retry_after_seconds(err: Exception) -> float | None:
+    resp = getattr(err, "response", None)
+    if resp is None:
+        return None
+    headers = getattr(resp, "headers", {}) or {}
+    for key in ("retry-after", "Retry-After", "x-ratelimit-reset", "x-ratelimit-timeremaining"):
+        val = headers.get(key)
+        if val:
+            try:
+                return float(val)
+            except ValueError:
+                continue
+    return None
+
+
+async def _embed_batch(client: AsyncOpenAI, model: str, batch: List[str]) -> List[List[float]]:
+    delay = 2.0
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            resp = await client.embeddings.create(model=model, input=batch)
+            return [d.embedding for d in resp.data]
+        except RateLimitError as err:
+            wait = _retry_after_seconds(err) or delay
+            wait += random.uniform(0, 1.0)
+            logger.warning(
+                "429 from embeddings API (attempt %d/%d); sleeping %.1fs",
+                attempt, _MAX_RETRIES, wait,
+            )
+            if attempt == _MAX_RETRIES:
+                raise
+            await asyncio.sleep(wait)
+            delay = min(delay * 2, 60.0)
+        except APIError as err:
+            status = getattr(err, "status_code", None)
+            if status and 500 <= status < 600 and attempt < _MAX_RETRIES:
+                logger.warning("Server error %s from embeddings (attempt %d); retrying in %.1fs",
+                               status, attempt, delay)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 60.0)
+                continue
+            raise
+    raise RuntimeError("unreachable")
 
 
 async def embed_texts(texts: List[str]) -> List[List[float]]:
@@ -18,16 +74,13 @@ async def embed_texts(texts: List[str]) -> List[List[float]]:
         return []
     settings = get_settings()
     client = _client()
-    # Batch in modest chunks to stay within request limits.
     out: List[List[float]] = []
-    batch_size = 64
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
-        resp = await client.embeddings.create(
-            model=settings.embedding_model,
-            input=batch,
-        )
-        out.extend([d.embedding for d in resp.data])
+    for i in range(0, len(texts), _BATCH_SIZE):
+        batch = texts[i : i + _BATCH_SIZE]
+        vectors = await _embed_batch(client, settings.embedding_model, batch)
+        out.extend(vectors)
+        if i + _BATCH_SIZE < len(texts):
+            await asyncio.sleep(_INTER_BATCH_DELAY_SEC)
     return out
 
 

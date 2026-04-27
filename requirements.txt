@@ -10,3 +10,6 @@ atlassian-python-api>=3.41,<4
 beautifulsoup4>=4.12,<5
 bleach>=6.1,<7
 python-dotenv>=1.0,<2
+# Trust the OS / Windows certificate store so corporate TLS-intercepting
+# proxies (Zscaler, BlueCoat, etc.) don't break HTTPS calls to GitHub Models.
+pip-system-certs>=4.0,<5
