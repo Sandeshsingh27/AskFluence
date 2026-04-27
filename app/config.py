@@ -2,7 +2,8 @@ from functools import lru_cache
 from typing import List
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from typing_extensions import Annotated
 
 
 class Settings(BaseSettings):
@@ -17,8 +18,8 @@ class Settings(BaseSettings):
     database_url: str = Field(...)
 
     # API security
-    api_keys: List[str] = Field(default_factory=list)
-    cors_origins: List[str] = Field(default_factory=list)
+    api_keys: Annotated[List[str], NoDecode] = Field(default_factory=list)
+    cors_origins: Annotated[List[str], NoDecode] = Field(default_factory=list)
 
     # GitHub Models
     github_token: str = Field(...)
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     confluence_base_url: str = ""
     confluence_email: str = ""
     confluence_api_token: str = ""
-    confluence_spaces: List[str] = Field(default_factory=list)
+    confluence_spaces: Annotated[List[str], NoDecode] = Field(default_factory=list)
 
     # Retrieval
     top_k: int = 5

@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "AskFluence",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "askfluence",
+      "Username": "askfluence",
+      "SSLMode": "prefer"
+    }
+  }
+}
