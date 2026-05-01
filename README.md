@@ -22,6 +22,8 @@ parameterized SQL, HTML sanitization, prompt hardening, and audit logging.
 
 Intentionally minimal — easy to read, easy to harden, easy to extend.
 
+![Frontend Look with LLM reply](image.png)
+
 ## Project layout
 
 ```
