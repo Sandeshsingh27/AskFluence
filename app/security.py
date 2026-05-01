@@ -17,6 +17,8 @@ def _constant_time_in(token: str, allowed: list[str]) -> bool:
 
 async def require_api_key(authorization: Optional[str] = Header(default=None)) -> str:
     settings = get_settings()
+    if not settings.auth_required:
+        return "anonymous:web"
     if not settings.api_keys:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -1,9 +1,12 @@
 import json
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.db import close_pool, get_pool
@@ -26,6 +29,9 @@ async def lifespan(_: FastAPI):
 
 settings = get_settings()
 app = FastAPI(title="AskFluence", version="0.1.0", lifespan=lifespan)
+static_dir = Path(__file__).parent / "static"
+
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,11 +47,17 @@ async def health():
     return {"status": "ok"}
 
 
-@app.post("/ask", response_model=AskResponse)
-async def ask(
-    payload: AskRequest,
-    user_id: str = Depends(require_api_key),
-) -> AskResponse:
+@app.get("/ui-config")
+async def ui_config():
+    return {"auth_required": settings.auth_required}
+
+
+@app.get("/")
+async def home():
+    return FileResponse(static_dir / "index.html")
+
+
+async def _ask_impl(payload: AskRequest, user_id: str) -> AskResponse:
     if len(payload.question) > settings.max_question_chars:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -88,3 +100,16 @@ async def ask(
         )
 
     return AskResponse(answer=answer, citations=citations)
+
+
+if settings.auth_required:
+    @app.post("/ask", response_model=AskResponse)
+    async def ask(
+        payload: AskRequest,
+        user_id: str = Depends(require_api_key),
+    ) -> AskResponse:
+        return await _ask_impl(payload, user_id)
+else:
+    @app.post("/ask", response_model=AskResponse)
+    async def ask(payload: AskRequest) -> AskResponse:
+        return await _ask_impl(payload, "anonymous:web")

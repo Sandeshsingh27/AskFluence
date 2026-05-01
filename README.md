@@ -5,7 +5,8 @@ A minimal RAG service that answers questions over your Confluence pages.
 - **LLM & embeddings**: [GitHub Models](https://github.com/marketplace/models) (`openai/gpt-4o-mini`, `openai/text-embedding-3-small`)
 - **Vector store**: PostgreSQL + `pgvector` (via Docker Compose)
 - **Admin UI**: pgAdmin (via Docker Compose, pre-registered server)
-- **API**: FastAPI with bearer-token auth, CORS allow-list, audit logging
+- **API**: FastAPI with optional bearer-token auth (`AUTH_REQUIRED`), CORS allow-list, audit logging
+- **Frontend**: Built-in web UI served by FastAPI at `/`
 - **Ingestion**: Pulls pages from Confluence Cloud **or** Server / Data Center (PAT or basic auth), sanitizes HTML, chunks, embeds, upserts
 
 > This is an MVP. It is intentionally small so it is easy to read and harden. See [USAGE.md](USAGE.md) for day-to-day commands.
@@ -26,14 +27,15 @@ Intentionally minimal — easy to read, easy to harden, easy to extend.
 ```
 .
 ├── app/
-│   ├── main.py              # FastAPI app, /ask endpoint
+│   ├── main.py              # FastAPI app, /ask endpoint + web UI routes
 │   ├── config.py            # Pydantic settings (CSV env parsing)
-│   ├── security.py          # Bearer-token auth (constant-time compare)
+│   ├── security.py          # Optional bearer-token auth (constant-time compare)
 │   ├── schemas.py           # Request / response models
 │   ├── db.py                # asyncpg pool + pgvector codec
 │   ├── embeddings.py        # GitHub Models embeddings
 │   ├── llm.py               # GitHub Models chat completion (grounded prompt)
 │   ├── retriever.py         # pgvector cosine search
+│   ├── static/              # Frontend files (index.html, styles.css, app.js)
 │   └── ingestion/
 │       ├── chunking.py      # HTML sanitization + character-window chunker
 │       └── run.py           # Confluence -> chunks -> embeddings -> Postgres
@@ -65,7 +67,12 @@ Intentionally minimal — easy to read, easy to harden, easy to extend.
 copy .env.example .env
 ```
 
-Generate a strong API key for the `/ask` endpoint and put it in `API_KEYS`:
+Choose auth mode:
+
+- Local UI mode (no token prompt in browser): `AUTH_REQUIRED=false`
+- Secured API mode: `AUTH_REQUIRED=true` and set `API_KEYS`
+
+If you want secured mode, generate a strong API key for the `/ask` endpoint and put it in `API_KEYS`:
 
 ```powershell
 python -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -81,6 +88,7 @@ POSTGRES_DB=askfluence
 DATABASE_URL=postgresql://askfluence:changeme@localhost:5432/askfluence
 
 # API
+AUTH_REQUIRED=false
 API_KEYS=<paste the secrets.token_urlsafe value>
 CORS_ORIGINS=http://localhost:3000
 
@@ -141,7 +149,22 @@ curl.exe http://localhost:8000/health
 # {"status":"ok"}
 ```
 
+Open the UI:
+
+- <http://localhost:8000>
+
+Check UI auth mode:
+
+```powershell
+curl.exe http://localhost:8000/ui-config
+# {"auth_required":false}
+```
+
 ### 6. Ask a question
+
+From the browser UI (`/`), type a question and click **Ask**.
+
+API example (only needed when `AUTH_REQUIRED=true`):
 
 ```powershell
 $apiKey = "<your API_KEYS value>"
@@ -155,7 +178,10 @@ See [USAGE.md](USAGE.md) for more examples (PowerShell, troubleshooting, DB insp
 
 ## Security notes (MVP)
 
-- **Auth**: All `/ask` calls require `Authorization: Bearer <token>` matching one of `API_KEYS`. Tokens are compared with `hmac.compare_digest` (constant-time).
+- **Auth**: Controlled by `AUTH_REQUIRED`.
+  - `AUTH_REQUIRED=true`: `/ask` requires `Authorization: Bearer <token>` matching one of `API_KEYS`.
+  - `AUTH_REQUIRED=false`: `/ask` is open for local/dev usage.
+  Tokens are compared with `hmac.compare_digest` (constant-time) when auth is enabled.
 - **CORS**: `CORS_ORIGINS` is an allow-list of exact origins; no wildcard.
 - **Input validation**: Pydantic models enforce types, length, and a strict character set on `space` filters.
 - **SQL**: All queries use parameterized `asyncpg` calls — no string interpolation.
@@ -167,7 +193,7 @@ See [USAGE.md](USAGE.md) for more examples (PowerShell, troubleshooting, DB insp
 
 ### Not included (deliberately, for the MVP)
 
-Permission-aware Confluence retrieval, OAuth 3LO, rate limiting, PII redaction, hybrid BM25, reranker, incremental sync via webhooks, evaluation harness, frontend, Slack/Teams bots. The architecture in the original spec describes how to add these.
+Permission-aware Confluence retrieval, OAuth 3LO, rate limiting, PII redaction, hybrid BM25, reranker, incremental sync via webhooks, evaluation harness, Slack/Teams bots. The architecture in the original spec describes how to add these.
 
 ## Configuration reference
 
@@ -176,6 +202,7 @@ See [.env.example](.env.example). Key knobs:
 - `LLM_MODEL` (default `openai/gpt-4o-mini`)
 - `EMBEDDING_MODEL` / `EMBEDDING_DIM` — must match the `vector(N)` size in [init.sql](init.sql)
 - `TOP_K`, `MAX_QUESTION_CHARS`
+- `AUTH_REQUIRED` (`true` or `false`) and `API_KEYS` (used only when auth is enabled)
 
 If you change `EMBEDDING_DIM`, drop the `chunks` table and re-run [init.sql](init.sql), then re-ingest.
 

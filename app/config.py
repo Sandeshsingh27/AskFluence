@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     database_url: str = Field(...)
 
     # API security
+    auth_required: bool = True
     api_keys: Annotated[List[str], NoDecode] = Field(default_factory=list)
     cors_origins: Annotated[List[str], NoDecode] = Field(default_factory=list)
 

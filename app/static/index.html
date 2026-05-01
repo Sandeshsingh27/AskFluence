@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AskFluence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">Confluence assistant</p>
+      <h1>AskFluence</h1>
+      <p class="subhead">Ask a question and get a grounded answer with citations from your indexed pages.</p>
+    </header>
+
+    <section class="panel controls">
+      <p id="authHint" class="auth-hint" aria-live="polite"></p>
+
+      <label class="field">
+        <span>API key</span>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="Paste API key from API_KEYS" disabled />
+      </label>
+
+      <div class="row two-up">
+        <label class="field">
+          <span>Space key filter</span>
+          <input id="spaceKey" type="text" value="CRS" placeholder="CRS" />
+        </label>
+        <label class="field">
+          <span>Request timeout (sec)</span>
+          <input id="timeoutSec" type="number" min="10" max="180" value="90" />
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Your question</span>
+        <textarea id="question" rows="5" placeholder="What does the team do?"></textarea>
+      </label>
+
+      <div class="actions">
+        <button id="askBtn" class="btn-primary" type="button">Ask</button>
+        <button id="clearBtn" class="btn-ghost" type="button">Clear</button>
+        <p id="status" class="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="panel result">
+      <div class="result-head">
+        <h2>Answer</h2>
+        <p id="elapsed" class="elapsed"></p>
+      </div>
+      <div id="answer" class="answer empty">Your answer will appear here.</div>
+
+      <h3>Citations</h3>
+      <ul id="citations" class="citations"></ul>
+    </section>
+  </main>
+
+  <template id="citationTemplate">
+    <li class="citation-item">
+      <a class="citation-link" target="_blank" rel="noopener noreferrer"></a>
+      <p class="citation-meta"></p>
+    </li>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

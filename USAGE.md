@@ -71,7 +71,18 @@ The ingester is **idempotent**: re-running it deletes a page's previous chunks a
 
 ## 3. Call the `/ask` API
 
-### 3a. Quick health check
+### 3a. Browser UI (recommended)
+
+Open:
+
+- <http://localhost:8000>
+
+Auth behavior depends on `.env`:
+
+- `AUTH_REQUIRED=false`: UI calls `/ask` directly (no API key prompt)
+- `AUTH_REQUIRED=true`: use API clients below with `Authorization: Bearer <API_KEYS value>`
+
+### 3b. Quick health check
 
 ```powershell
 curl.exe http://localhost:8000/health
@@ -81,7 +92,7 @@ curl.exe http://localhost:8000/health
 ### 3b. PowerShell (cleanest)
 
 ```powershell
-$apiKey = "<your API_KEYS value from .env>"
+$apiKey = "<your API_KEYS value from .env>"   # needed only if AUTH_REQUIRED=true
 
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/ask `
   -Headers @{ Authorization = "Bearer $apiKey" } `
@@ -96,7 +107,7 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/ask `
 ### 3c. curl.exe (Windows-bundled)
 
 ```powershell
-$apiKey = "<your API_KEYS value from .env>"
+$apiKey = "<your API_KEYS value from .env>"   # needed only if AUTH_REQUIRED=true
 
 curl.exe -X POST http://localhost:8000/ask `
   -H "Authorization: Bearer $apiKey" `
@@ -107,7 +118,7 @@ curl.exe -X POST http://localhost:8000/ask `
 ### 3d. bash / git-bash / WSL
 
 ```bash
-API_KEY="<your API_KEYS value from .env>"
+API_KEY="<your API_KEYS value from .env>"  # needed only if AUTH_REQUIRED=true
 
 curl -s -X POST http://localhost:8000/ask \
   -H "Authorization: Bearer $API_KEY" \
@@ -152,9 +163,10 @@ If retrieval returns nothing the answer falls back to:
 |---|---|---|
 | `401 Missing bearer token` | header missing | add `Authorization: Bearer <key>` |
 | `401 Invalid token` | wrong key | check `API_KEYS` in [.env](.env), restart uvicorn after edits |
+| `503 Embeddings quota exhausted...` | GitHub Models returned 429 with Retry-After | wait for reset window or use another token/provider |
 | `413 Question too long` | exceeds `MAX_QUESTION_CHARS` | shorten or raise the limit |
 | `422` | request body failed validation | check JSON shape and `spaces` characters |
-| `503 API keys not configured` | `API_KEYS` empty | set it, restart uvicorn |
+| `503 API keys not configured` | `AUTH_REQUIRED=true` but `API_KEYS` empty | set it, restart uvicorn |
 
 ---
 
@@ -292,7 +304,7 @@ docker stop <other-postgres-container>
 ## 7. Common one-liners
 
 ```powershell
-# Generate an API key
+# Generate an API key (only if AUTH_REQUIRED=true)
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 # Show containers
