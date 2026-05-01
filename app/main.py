@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import close_pool, get_pool
+from app.embeddings import EmbeddingsQuotaExceededError
 from app.llm import generate_answer
 from app.retriever import retrieve
 from app.schemas import AskRequest, AskResponse, Citation
@@ -52,8 +53,14 @@ async def ask(
         )
 
     spaces = payload.filters.spaces if payload.filters else None
-    chunks = await retrieve(payload.question, spaces=spaces)
-    answer = await generate_answer(payload.question, chunks)
+    try:
+        chunks = await retrieve(payload.question, spaces=spaces)
+        answer = await generate_answer(payload.question, chunks)
+    except EmbeddingsQuotaExceededError as err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(err),
+        ) from err
 
     # Deduplicate citations by page_id, preserve order, keep best score.
     seen: dict[str, Citation] = {}

@@ -7,7 +7,7 @@ from atlassian import Confluence
 
 from app.config import get_settings
 from app.db import get_pool, close_pool
-from app.embeddings import embed_texts
+from app.embeddings import EmbeddingsQuotaExceededError, embed_texts
 from app.ingestion.chunking import chunk_text, html_to_text
 
 logger = logging.getLogger("askfluence.ingest")
@@ -152,6 +152,10 @@ async def main() -> None:
         for space in settings.confluence_spaces:
             total += await ingest_space(space)
         logger.info("Done. Indexed %d pages total.", total)
+    except EmbeddingsQuotaExceededError as err:
+        raise SystemExit(
+            f"Ingestion paused due to embeddings quota exhaustion. {err}"
+        ) from err
     finally:
         await close_pool()
 
